@@ -2,6 +2,7 @@ var assemble = require('assemble');
 var through = require('through2');
 var unique = require('array-unique');
 var extname = require('gulp-extname');
+var async = require('async');
 var File = require('vinyl');
 
 /**
@@ -45,20 +46,30 @@ function plugin(template) {
   }, function (cb) {
     var stream = this;
     var tags = aggregateTags(files);
+    tags.sort();
 
     var tmpl = assemble.views.indices[template];
-    tmpl.data.tags = buildLinks(tags, files);
 
-    assemble.render(tmpl, function (err, content) {
-      if (err) console.log(err);
-      var file = new File({path : 'index.html'});
+    // figure out how many pages are needed
+    var pages = paginate(tags, 2);
+    async.eachSeries(pages, function (page, next) {
+      // make data for each page
+      var locals = {};
+      locals.tags = buildLinks(page.items, files);
+      locals.pagination = buildPaginationLinks(page, 'tags/index-:num.html');
 
-      // `data` needed for assemble
-      file.data = {};
-      file.contents = new Buffer(content);
-      stream.push(file);
-      cb();
-    });
+      assemble.render(tmpl, locals, function (err, content) {
+        if (err) console.log(err);
+        var file = new File({path : locals.pagination.url});
+
+        // `data` needed for assemble
+        file.data = {};
+        file.contents = new Buffer(content);
+        stream.push(file);
+        next();
+      });
+    }, cb);
+
   });
 }
 
@@ -87,7 +98,6 @@ function aggregateTags(files) {
 
 function buildLinks(tags, files) {
   var res = {};
-  tags.sort();
 
   for (var i = 0; i < tags.length; i++) {
     var len = files.length;
@@ -105,4 +115,44 @@ function buildLinks(tags, files) {
     }
   }
   return res;
+}
+
+/**
+ * Split the list into paginated data
+ */
+
+function paginate (list, limit) {
+  limit = limit || 10;
+  var pages = [];
+  var total = list.length;
+  var max = Math.round(total / limit);
+  var num = 1;
+  var i = 0;
+  while (i < total) {
+    var page = {};
+    page.first = 1;
+    page.last = max;
+    page.prev = (num === 1 ? 1 : num - 1);
+    page.next = (num === max ? max : num + 1);
+    page.num = num;
+    page.items = list.slice(i, i + limit);
+    pages.push(page);
+
+    num++;
+    i = i + limit;
+  }
+  return pages;
+}
+
+/**
+ * Build the related pagination links
+ */
+
+function buildPaginationLinks (page, pattern) {
+  page.url = pattern.split(':num').join(page.num);
+  page.firstUrl = pattern.split(':num').join(page.first);
+  page.lastUrl = pattern.split(':num').join(page.last);
+  page.prevUrl = pattern.split(':num').join(page.prev);
+  page.nextUrl = pattern.split(':num').join(page.next);
+  return page;
 }

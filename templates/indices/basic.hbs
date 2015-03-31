@@ -10,4 +10,11 @@
     </ul>
   </div>
   {{/each}}
+
+  <div class="nav">
+    <span><a href="{{relative "./tags" pagination.firstUrl}}">|&lt;</a></span>
+    <span><a href="{{relative "./tags" pagination.prevUrl}}">&lt;&lt;</a></span>
+    <span><a href="{{relative "./tags" pagination.nextUrl}}">&gt;&gt;</a></span>
+    <span><a href="{{relative "./tags" pagination.lastUrl}}">&gt;|</a></span>
+  </div>
 </section>
